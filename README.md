@@ -10,6 +10,33 @@ This repository root is the **backend** (Node/Express/Prisma/PostgreSQL —
 see below). The **frontend** (React/Vite control center UI) lives in
 [frontend/](frontend/), with its own README covering setup and scope.
 
+## Running both together
+
+```bash
+# Terminal 1 - backend (after DATABASE_URL is set in .env, see below)
+npm install
+npx prisma migrate deploy
+npm run seed
+npm run dev                              # http://localhost:4000
+
+# Terminal 2 - frontend
+cd frontend
+npm install
+cp .env.example .env                     # VITE_API_URL=http://localhost:4000/api/v1 by default
+npm run dev                              # http://localhost:5173 (or 5174 if 5173 is busy)
+```
+
+Open the frontend URL and log in with the seeded owner account
+(`owner@tilestore.local` / `ChangeMe123!` by default — see `prisma/seed.ts`
+to override via `SEED_OWNER_EMAIL`/`SEED_OWNER_PASSWORD`).
+
+The backend's `CORS_ORIGIN` in `.env` must list whichever port Vite actually
+picks. It defaults to `http://localhost:5173,http://localhost:5174` to
+cover both; if Vite ever picks a different port, add it to that list (comma
+separated) or requests from the browser will be silently blocked by CORS —
+this is a browser-enforced restriction that won't show up when testing the
+API with curl or a Node script, only in the actual browser console.
+
 ## Backend
 
 **Scope:** all 15 phases of the execution plan (Foundation through
@@ -31,6 +58,12 @@ verified vs. what still needs a real deployment/production review.
 npm install
 cp .env.example .env   # then edit secrets/DB URL as needed
 ```
+
+`.env.example` ships with placeholder `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET`
+values (`change-me-...`). They're fine for local dev as-is, but replace them
+with real random secrets (e.g. `openssl rand -base64 48`) before this is
+reachable by anyone other than you — anyone who knows these placeholders
+could forge valid login tokens.
 
 ### Database
 
@@ -73,6 +106,29 @@ is needed against Docker or a real Postgres instance.
 
 This whole path is a development/testing convenience only — use Docker or a
 managed Postgres for anything that matters (staging, CI, production).
+
+**Using your own hosted/external Postgres (Supabase, Neon, Railway, RDS,
+etc.):** once you have a connection string, this is all that's needed —
+
+```bash
+# in .env
+DATABASE_URL="postgresql://user:password@host:port/dbname?sslmode=require"
+```
+
+Most hosted Postgres providers require `?sslmode=require` (or already embed
+it in the URL they give you — check before adding a second one). Then:
+
+```bash
+npx prisma migrate deploy   # applies both migrations, creates all tables
+npm run seed                # optional: creates an OWNER login + default teams/warehouse/incentive rule
+npm run dev                 # or: npm run build && npm start
+```
+
+No code changes are needed for a different database — Prisma reads
+`DATABASE_URL` at startup. If `prisma migrate deploy` reports the database
+isn't empty (e.g. you already ran something against it), stop and share
+what's in it before proceeding — don't run a fresh `migrate deploy` against
+data you might want to keep.
 
 ### Run
 
