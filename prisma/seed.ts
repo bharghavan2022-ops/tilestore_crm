@@ -33,11 +33,16 @@ async function main() {
     data: { name: "Showroom Store", type: "STORE", address: "Main Street" },
   });
 
+  const incentiveRule = await prisma.incentiveRule.create({
+    data: { name: "Default", activityWeight: 10, salesClosedPct: 0.01, collectionsPct: 0.005, isActive: true },
+  });
+
   console.log("Seed complete:");
   console.log(`  Owner login: ${ownerEmail} / ${ownerPassword}`);
   console.log(`  Owner id: ${owner.id}`);
   console.log(`  Teams: ${teams.map((t) => t.name).join(", ")}`);
   console.log(`  Warehouse: ${mainWarehouse.name}`);
+  console.log(`  Incentive rule: ${incentiveRule.name}`);
 }
 
 main()

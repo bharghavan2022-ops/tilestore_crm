@@ -6,6 +6,7 @@ import { NotFoundError } from "../../lib/errors";
 import { toSkipTake, paginated } from "../../lib/pagination";
 import { leadVisibilityWhere, isManager, type AuthUser } from "../../lib/authz";
 import { ForbiddenError } from "../../lib/errors";
+import { notifyUser } from "../../lib/notify";
 import type {
   createLeadSchema,
   updateLeadStatusSchema,
@@ -66,6 +67,16 @@ export async function createLead(input: z.infer<typeof createLeadSchema>, actorI
       action: "CREATED",
       newValue: created,
     });
+    if (created.assignedToId) {
+      await notifyUser(tx, {
+        userId: created.assignedToId,
+        type: "TASK_ASSIGNED",
+        title: "New lead assigned",
+        message: `Lead for ${created.customer.name} has been assigned to you.`,
+        entityType: "Lead",
+        entityId: created.id,
+      });
+    }
     return created;
   });
 }
@@ -103,6 +114,14 @@ export async function assignLead(
       action: "ASSIGNED",
       previousValue: { assignedToId: existing.assignedToId },
       newValue: { assignedToId: input.assignedToId },
+    });
+    await notifyUser(tx, {
+      userId: input.assignedToId,
+      type: "TASK_ASSIGNED",
+      title: "Lead assigned to you",
+      message: `Lead for ${updated.customer.name} has been assigned to you.`,
+      entityType: "Lead",
+      entityId: id,
     });
     return updated;
   });

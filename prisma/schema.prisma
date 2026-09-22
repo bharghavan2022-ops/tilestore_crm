@@ -78,6 +78,12 @@ model User {
   deliveryDelayEvents     DeliveryDelayEvent[]
   proofsOfDelivery        ProofOfDelivery[]
   paymentsRecorded        Payment[]
+  notifications           Notification[]
+  documentsUploaded       Document[]
+  employeeProfile         EmployeeProfile?
+  assetAssignments        AssetAssignment[]
+  assetMaintenances       AssetMaintenance[]
+  policyAcknowledgements  PolicyAcknowledgement[]
 
   @@index([role])
   @@index([teamId])
@@ -125,6 +131,14 @@ model AuditLog {
 // Customers & Contacts
 // ---------------------------------------------------------------------------
 
+enum CustomerSegment {
+  RETAIL
+  ARCHITECT
+  BUILDER
+  CONTRACTOR
+  OTHER
+}
+
 model Customer {
   id          String   @id @default(cuid())
   name        String
@@ -135,6 +149,7 @@ model Customer {
   city        String?
   state       String?
   gstNumber   String?
+  segment     CustomerSegment @default(RETAIL)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -820,4 +835,187 @@ model Payment {
   @@index([invoiceId])
   @@index([customerId])
   @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Notifications & Documents
+// ---------------------------------------------------------------------------
+
+enum NotificationType {
+  TASK_ASSIGNED
+  APPROVAL_NEEDED
+  QUOTATION_DECISION
+  STOCK_SHORTAGE
+  PO_UPDATE
+  GOODS_RECEIVED
+  DELIVERY_DELAY
+  POD_REQUIRED
+  POD_UPLOADED
+  PAYMENT_DUE
+}
+
+// In-app notifications only for now - no email/SMS integration yet. Written
+// from one place (src/lib/notify.ts) rather than scattered across every
+// controller, per the workflow rules.
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       NotificationType
+  title      String
+  message    String
+  entityType String?
+  entityId   String?
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  @@index([userId, readAt])
+  @@index([entityType, entityId])
+}
+
+enum DocumentCategory {
+  RAW_VIDEO
+  EDITED_VIDEO
+  IMAGE
+  DOCUMENT
+  MARKETING_CREATIVE
+}
+
+// Polymorphic pointer to a file living in Google Drive (the shared source
+// of truth per the workflow rules) - this backend stores the link and
+// metadata, never the file itself. A Document row only ever exists once a
+// real fileUrl is known, so "uploaded" can never mean an empty checkmark.
+model Document {
+  id           String           @id @default(cuid())
+  entityType   String
+  entityId     String
+  category     DocumentCategory
+  title        String?
+  fileUrl      String
+  uploadedById String
+  uploadedBy   User             @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime         @default(now())
+
+  @@index([entityType, entityId])
+}
+
+// ---------------------------------------------------------------------------
+// People & Assets
+// ---------------------------------------------------------------------------
+
+model EmployeeProfile {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employeeCode String?   @unique
+  designation  String?
+  joiningDate  DateTime?
+
+  @@index([designation])
+}
+
+enum AssetType {
+  VEHICLE
+  LAPTOP
+  FORKLIFT
+  TOOL
+  DEVICE
+  OTHER
+}
+
+enum AssetStatus {
+  AVAILABLE
+  ASSIGNED
+  MAINTENANCE
+  RETIRED
+}
+
+model Asset {
+  id            String      @id @default(cuid())
+  name          String
+  type          AssetType
+  serialNumber  String?     @unique
+  status        AssetStatus @default(AVAILABLE)
+  purchaseDate  DateTime?
+  purchaseCost  Decimal?    @db.Decimal(14, 2)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  assignments  AssetAssignment[]
+  maintenances AssetMaintenance[]
+
+  @@index([status])
+  @@index([type])
+}
+
+// Full assignment history is kept (never overwritten), so an asset's
+// lifecycle stays traceable per the project's People & Assets requirement.
+model AssetAssignment {
+  id         String    @id @default(cuid())
+  assetId    String
+  asset      Asset     @relation(fields: [assetId], references: [id])
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  assignedAt DateTime  @default(now())
+  returnedAt DateTime?
+  notes      String?
+
+  @@index([assetId])
+  @@index([userId])
+}
+
+model AssetMaintenance {
+  id            String   @id @default(cuid())
+  assetId       String
+  asset         Asset    @relation(fields: [assetId], references: [id])
+  description   String
+  cost          Decimal? @db.Decimal(14, 2)
+  performedAt   DateTime @default(now())
+  performedById String
+  performedBy   User     @relation(fields: [performedById], references: [id])
+  nextDueAt     DateTime?
+
+  @@index([assetId])
+}
+
+// ---------------------------------------------------------------------------
+// HR & Incentives
+// ---------------------------------------------------------------------------
+
+model HrPolicy {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  fileUrl     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  acknowledgements PolicyAcknowledgement[]
+}
+
+model PolicyAcknowledgement {
+  id             String   @id @default(cuid())
+  policyId       String
+  policy         HrPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  acknowledgedAt DateTime @default(now())
+
+  @@unique([policyId, userId])
+  @@index([userId])
+}
+
+// Single active weighting rule for the incentive formula
+// (CRM Activity + Sales Closed + Collections). Kept as data, not code, so
+// the weights can change without a deployment - but the computation itself
+// stays a plain, auditable function (src/modules/hr/incentives.service.ts)
+// rather than a generic rule engine.
+model IncentiveRule {
+  id                  String   @id @default(cuid())
+  name                String
+  activityWeight      Decimal  @default(10) @db.Decimal(10, 2)
+  salesClosedPct      Decimal  @default(1) @db.Decimal(6, 4)
+  collectionsPct      Decimal  @default(1) @db.Decimal(6, 4)
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
 }

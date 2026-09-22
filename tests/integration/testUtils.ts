@@ -3,6 +3,15 @@ import { PrismaClient } from "@prisma/client";
 export const testPrisma = new PrismaClient();
 
 const TABLES_IN_DELETE_ORDER = [
+  "Notification",
+  "Document",
+  "PolicyAcknowledgement",
+  "HrPolicy",
+  "IncentiveRule",
+  "AssetMaintenance",
+  "AssetAssignment",
+  "Asset",
+  "EmployeeProfile",
   "Payment",
   "InvoiceItem",
   "Invoice",

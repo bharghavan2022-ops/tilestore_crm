@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { recordAudit } from "../../lib/audit";
+import { notifyTeamAndManagers, notifyUser } from "../../lib/notify";
 
 type TxClient = PrismaClient | Prisma.TransactionClient;
 
@@ -172,7 +173,7 @@ export async function runStockGateForOrder(
 ): Promise<StockGateResult> {
   const order = await tx.order.findUniqueOrThrow({
     where: { id: orderId },
-    include: { items: true },
+    include: { items: { include: { product: { select: { id: true, sku: true, name: true } } } } },
   });
 
   const productIds = [...new Set(order.items.map((i) => i.productId))];
@@ -231,6 +232,29 @@ export async function runStockGateForOrder(
             action: "CREATED",
             newValue: shortage,
             context: { orderId, orderItemId: item.id },
+          });
+          // Stock Shortage -> Sales + Warehouse + Purchase notified.
+          await notifyTeamAndManagers(tx, "WAREHOUSE", {
+            type: "STOCK_SHORTAGE",
+            title: `Stock shortage: ${item.product.name}`,
+            message: `Order ${order.orderNumber} needs ${trueShortfall} more of ${item.product.sku} than is available or already inbound.`,
+            entityType: "Shortage",
+            entityId: shortage.id,
+          });
+          await notifyTeamAndManagers(tx, "PURCHASE", {
+            type: "STOCK_SHORTAGE",
+            title: `Stock shortage: ${item.product.name}`,
+            message: `Order ${order.orderNumber} needs ${trueShortfall} more of ${item.product.sku} than is available or already inbound.`,
+            entityType: "Shortage",
+            entityId: shortage.id,
+          });
+          await notifyUser(tx, {
+            userId: order.salespersonId,
+            type: "STOCK_SHORTAGE",
+            title: `Stock shortage on your order`,
+            message: `Order ${order.orderNumber} has a shortage of ${trueShortfall} x ${item.product.name}.`,
+            entityType: "Shortage",
+            entityId: shortage.id,
           });
         }
       }

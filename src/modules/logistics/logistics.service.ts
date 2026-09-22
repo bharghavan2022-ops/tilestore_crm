@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma";
 import { recordAudit } from "../../lib/audit";
 import { BadRequestError, ForbiddenError, NotFoundError } from "../../lib/errors";
 import { toSkipTake, paginated } from "../../lib/pagination";
+import { notifyTeamAndManagers, notifyUser, notifyUsers } from "../../lib/notify";
 import type {
   createVehicleSchema,
   updateVehicleSchema,
@@ -15,7 +16,7 @@ import type {
 } from "./logistics.schema";
 
 const DELIVERY_INCLUDE = {
-  order: { select: { id: true, orderNumber: true, customerId: true, status: true } },
+  order: { select: { id: true, orderNumber: true, customerId: true, status: true, salespersonId: true } },
   vehicle: true,
   delayEvents: { orderBy: { createdAt: "desc" as const } },
   pod: true,
@@ -149,6 +150,35 @@ export async function delayDelivery(id: string, input: z.infer<typeof delayDeliv
       action: "DELAYED",
       newValue: { reason: input.reason },
     });
+
+    // Delivery Delay -> Sales + Client + Finance notified where applicable.
+    await notifyUser(tx, {
+      userId: updated.order.salespersonId,
+      type: "DELIVERY_DELAY",
+      title: `Delivery delayed for order ${updated.order.orderNumber}`,
+      message: input.reason,
+      entityType: "Delivery",
+      entityId: id,
+    });
+    await notifyTeamAndManagers(tx, "ACCOUNTS", {
+      type: "DELIVERY_DELAY",
+      title: `Delivery delayed for order ${updated.order.orderNumber}`,
+      message: input.reason,
+      entityType: "Delivery",
+      entityId: id,
+    });
+    const clientUsers = await tx.user.findMany({
+      where: { role: "CLIENT", customerId: updated.order.customerId, status: "ACTIVE" },
+      select: { id: true },
+    });
+    await notifyUsers(tx, clientUsers.map((u) => u.id), {
+      type: "DELIVERY_DELAY",
+      title: `Your delivery for order ${updated.order.orderNumber} is delayed`,
+      message: input.reason,
+      entityType: "Delivery",
+      entityId: id,
+    });
+
     return updated;
   });
 }
@@ -173,6 +203,16 @@ export async function markDelivered(id: string, actorId: string) {
       previousValue: { status: delivery.status },
       newValue: { status: "DELIVERED" },
     });
+
+    // POD Required -> relevant user notified.
+    await notifyTeamAndManagers(tx, "DELIVERY", {
+      type: "POD_REQUIRED",
+      title: `POD required for order ${updated.order.orderNumber}`,
+      message: `Order ${updated.order.orderNumber} was delivered - proof of delivery is still needed.`,
+      entityType: "Delivery",
+      entityId: id,
+    });
+
     return updated;
   });
 }
@@ -180,7 +220,10 @@ export async function markDelivered(id: string, actorId: string) {
 // "No valid file/link = POD is not uploaded" - uploadPodSchema already
 // enforces fileUrl is a real URL, so reaching here means a real file exists.
 export async function uploadPod(deliveryId: string, input: z.infer<typeof uploadPodSchema>, actorId: string) {
-  const pod = await prisma.proofOfDelivery.findUnique({ where: { deliveryId } });
+  const pod = await prisma.proofOfDelivery.findUnique({
+    where: { deliveryId },
+    include: { delivery: { include: { order: { select: { orderNumber: true, salespersonId: true } } } } },
+  });
   if (!pod) throw new NotFoundError("Proof of delivery record not found");
 
   return prisma.$transaction(async (tx) => {
@@ -197,6 +240,24 @@ export async function uploadPod(deliveryId: string, input: z.infer<typeof upload
       newValue: { fileUrl: input.fileUrl },
       context: { deliveryId },
     });
+
+    // POD Uploaded -> sales + accounts notified.
+    await notifyUser(tx, {
+      userId: pod.delivery.order.salespersonId,
+      type: "POD_UPLOADED",
+      title: `POD uploaded for order ${pod.delivery.order.orderNumber}`,
+      message: `Proof of delivery has been uploaded for order ${pod.delivery.order.orderNumber}.`,
+      entityType: "ProofOfDelivery",
+      entityId: updated.id,
+    });
+    await notifyTeamAndManagers(tx, "ACCOUNTS", {
+      type: "POD_UPLOADED",
+      title: `POD uploaded for order ${pod.delivery.order.orderNumber}`,
+      message: `Proof of delivery has been uploaded for order ${pod.delivery.order.orderNumber} - ready to invoice.`,
+      entityType: "ProofOfDelivery",
+      entityId: updated.id,
+    });
+
     return updated;
   });
 }

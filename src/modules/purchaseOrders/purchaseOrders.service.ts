@@ -6,6 +6,7 @@ import { nextDocumentNumber } from "../../lib/sequence";
 import { BadRequestError, ForbiddenError, NotFoundError } from "../../lib/errors";
 import { toSkipTake, paginated } from "../../lib/pagination";
 import { ensureStockItem, reevaluateShortagesForProduct } from "../inventory/stockGate.service";
+import { notifyTeamAndManagers } from "../../lib/notify";
 import type {
   createPurchaseOrderSchema,
   updatePurchaseOrderStatusSchema,
@@ -117,6 +118,13 @@ export async function updatePurchaseOrderStatus(
         data: { status: "OPEN", purchaseOrderId: null },
       });
     }
+    await notifyTeamAndManagers(tx, "PURCHASE", {
+      type: "PO_UPDATE",
+      title: `PO ${updated.poNumber} is now ${input.status}`,
+      message: `Purchase order ${updated.poNumber} to ${updated.vendor.name} moved from ${existing.status} to ${input.status}.`,
+      entityType: "PurchaseOrder",
+      entityId: id,
+    });
     return updated;
   });
 }
@@ -199,6 +207,14 @@ export async function receiveGoods(
       entityId: receipt.id,
       action: "CREATED",
       newValue: { purchaseOrderId, items: input.items },
+    });
+
+    await notifyTeamAndManagers(tx, "WAREHOUSE", {
+      type: "GOODS_RECEIVED",
+      title: `Goods received for PO ${po.poNumber}`,
+      message: `${input.items.length} line item(s) received against purchase order ${po.poNumber}.`,
+      entityType: "GoodsReceipt",
+      entityId: receipt.id,
     });
 
     const refreshedItems = await tx.purchaseOrderItem.findMany({ where: { purchaseOrderId } });

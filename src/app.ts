@@ -23,6 +23,14 @@ import { purchaseOrdersRouter } from "./modules/purchaseOrders/purchaseOrders.ro
 import { logisticsRouter } from "./modules/logistics/logistics.routes";
 import { invoicesRouter } from "./modules/invoices/invoices.routes";
 import { paymentsRouter } from "./modules/payments/payments.routes";
+import { notificationsRouter } from "./modules/notifications/notifications.routes";
+import { documentsRouter } from "./modules/documents/documents.routes";
+import { employeesRouter } from "./modules/employees/employees.routes";
+import { assetsRouter } from "./modules/assets/assets.routes";
+import { hrPoliciesRouter } from "./modules/hrPolicies/hrPolicies.routes";
+import { incentivesRouter } from "./modules/incentives/incentives.routes";
+import { profitabilityRouter } from "./modules/profitability/profitability.routes";
+import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
 
 export function createApp() {
   const app = express();
@@ -64,6 +72,14 @@ export function createApp() {
   api.use("/logistics", logisticsRouter);
   api.use("/invoices", invoicesRouter);
   api.use("/payments", paymentsRouter);
+  api.use("/notifications", notificationsRouter);
+  api.use("/documents", documentsRouter);
+  api.use("/employees", employeesRouter);
+  api.use("/assets", assetsRouter);
+  api.use("/hr-policies", hrPoliciesRouter);
+  api.use("/incentives", incentivesRouter);
+  api.use("/profitability", profitabilityRouter);
+  api.use("/dashboard", dashboardRouter);
   app.use("/api/v1", api);
 
   app.use(notFoundHandler);

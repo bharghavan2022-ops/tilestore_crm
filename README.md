@@ -1,16 +1,14 @@
 # TILE / OS — Backend
 
 Backend for TILE / OS, a tile-store business operating system connecting CRM,
-quotations, orders, inventory, purchasing, logistics, and accounts into one
-system. See [docs/planning/](docs/planning/) for the original product
-context, workflow rules, and execution plan this backend was built against.
+quotations, orders, inventory, purchasing, logistics, accounts, people &
+assets, HR/incentives, profitability, and reporting into one system. See
+[docs/planning/](docs/planning/) for the original product context, workflow
+rules, and execution plan this backend was built against.
 
-**Scope of this pass:** the full Lead → Quotation → Approval → Order →
-Stock Gate → Purchasing → Logistics → Accounts chain (Phases 0–9 of the
-execution plan). **Not yet built:** Documents/Notifications integration
-(Google Drive, email), People & Assets, HR & Incentives, Profitability
-views, Dashboard/Reporting aggregation APIs, and the final hardening pass —
-see [Status](#status) below.
+**Scope:** all 15 phases of the execution plan (Foundation through
+Hardening) are implemented — see [Status](#status) for exactly what's
+verified vs. what still needs a real deployment/production review.
 
 ## Stack
 
@@ -37,24 +35,38 @@ You need a PostgreSQL instance. Two options:
 ```bash
 docker compose up -d
 npx prisma migrate deploy
-npm run seed   # creates an OWNER login, default teams, and a warehouse
+npm run seed   # creates an OWNER login, default teams, a warehouse, and a default incentive rule
 ```
 
 **No Docker available:** the repo includes `@electric-sql/pglite` /
 `@electric-sql/pglite-socket` as dev dependencies, which run a real
 Postgres-wire-protocol server backed by an embedded (WASM) Postgres — no
-Docker or native install required. This was in fact how this backend's own
-integration tests were verified end-to-end in this project's sandboxed dev
-environment.
+Docker or native install required. This is in fact how this backend's own
+migrations, seed script, and full server process were verified end-to-end
+(over real HTTP, not just in-process tests) while building it in a
+sandboxed dev environment with no Docker available.
 
 ```bash
 npm run db:local   # starts a Postgres-wire server on 127.0.0.1:55432
-# in another terminal, with DATABASE_URL=postgresql://postgres@127.0.0.1:55432/postgres?sslmode=disable
-npx prisma migrate deploy
 ```
 
-This is a development/testing convenience only — use Docker or a managed
-Postgres for anything that matters (staging, CI, production).
+Then, in another terminal:
+
+```bash
+export DATABASE_URL="postgresql://postgres@127.0.0.1:55432/postgres?sslmode=disable&pgbouncer=true&connection_limit=5"
+npx prisma migrate deploy
+npm run seed
+npm run dev
+```
+
+The `pgbouncer=true` flag is required against this embedded server — its
+connection multiplexer collides with Prisma's named prepared statements
+without it (`prepared statement "sN" already exists`). `connection_limit=5`
+avoids overwhelming the multiplexer under concurrent requests. Neither flag
+is needed against Docker or a real Postgres instance.
+
+This whole path is a development/testing convenience only — use Docker or a
+managed Postgres for anything that matters (staging, CI, production).
 
 ### Run
 
@@ -69,19 +81,36 @@ npm run build && npm start   # production build
 
 ```bash
 npm run test:unit          # pure logic, no DB required
-npm run test:integration   # full HTTP-driven lifecycle test, requires DATABASE_URL
+npm run test:integration   # full HTTP-driven tests, requires DATABASE_URL
 npm test                   # everything
 ```
 
-`tests/integration/lifecycle.test.ts` drives the entire chain through the
-real HTTP API — login, lead, quotation, approval, order creation (which
-triggers the Stock Gate), sequential fulfilment (pick/pack/label/handoff,
-including the physical stock decrement on pick and the check that a later
-stage can't complete before an earlier one), delivery dispatch/delay/POD,
-invoicing, and payment (which closes the order) — plus a second scenario
-verifying the Shortage path when stock is insufficient. It has been run
-successfully against a real Postgres-wire database as part of building this
-backend.
+Integration test files share one database and reset it between tests, so
+Vitest is configured with `fileParallelism: false` — running them in
+parallel let one file's reset truncate another file's in-flight data
+(a real bug this project's own tests caught while being built).
+
+- `tests/integration/lifecycle.test.ts` drives the entire core chain through
+  the real HTTP API — login, lead, quotation, approval, order creation
+  (triggers the Stock Gate), sequential fulfilment (pick → pack → label →
+  handoff, including the physical stock decrement on pick and the check
+  that a later stage can't complete before an earlier one), delivery
+  dispatch/delay/POD, invoicing, and payment (which closes the order) —
+  plus a second scenario verifying the Shortage path when stock is
+  insufficient.
+- `tests/integration/extendedModules.test.ts` covers notifications (lead
+  assignment triggers an in-app notification), documents (rejects a
+  non-URL file link), assets (create → assign → maintenance → return, and
+  that a second assignment while already assigned is rejected), HR policy
+  acknowledgement (and that acknowledging twice is rejected), the
+  incentive report (computed from real activity/order/payment rows, not
+  hardcoded), and profitability + dashboard aggregation against a real
+  order.
+
+Both files have been run successfully together against a real
+Postgres-wire database, and the built server has been smoke-tested as an
+actual running process (`tsx src/server.ts` over real HTTP, not just
+supertest) against a seeded database.
 
 ## Architecture
 
@@ -89,7 +118,8 @@ backend.
 src/
   config/env.ts        # validated environment (fails fast on boot)
   lib/                 # prisma client, jwt, password hashing, pricing,
-                        # audit log, pagination, sequence numbers, authz helpers
+                        # audit log, notifications, pagination, sequence
+                        # numbers, authz helpers
   middleware/           # authenticate, authorize (role gate), validate, error handler
   modules/<domain>/     # schema (zod) + service (business logic + Prisma) +
                         # controller (thin HTTP glue) + routes, per domain
@@ -100,13 +130,14 @@ prisma/
   seed.ts
 tests/
   unit/                 # pure-function tests, no DB
-  integration/           # full HTTP + DB lifecycle tests
+  integration/           # full HTTP + DB tests
 ```
 
 Each domain module (auth, users, teams, customers, leads, quotations,
 products, warehouses, inventory, orders, vendors, purchaseOrders, logistics,
-invoices, payments) follows the same shape. Business logic that spans
-domains — the Stock Gate, in particular — lives in
+invoices, payments, notifications, documents, employees, assets,
+hrPolicies, incentives, profitability, dashboard) follows the same shape.
+Business logic that spans domains — the Stock Gate in particular — lives in
 `src/modules/inventory/stockGate.service.ts` and is called by the modules
 that need it (orders, purchaseOrders) rather than duplicated.
 
@@ -147,22 +178,60 @@ vendor but not yet received), checked against the requested quantity.
   actually picked (`consumeReservedStock`), keeping "reserved" and
   "physically issued" as distinct, auditable states.
 
+## Notifications
+
+`src/lib/notify.ts` is the single place notifications get written from
+(per the workflow rules' "avoid scattering notification code across every
+controller"). It's called from inside the same transaction as the event it
+describes: lead assignment, quotation submitted/decided, stock shortage,
+PO status change, goods received, delivery delay, POD required/uploaded.
+Notifications are in-app only (`GET /notifications`) — there is no
+email/SMS delivery yet. `POST /notifications/run-overdue-check` is exposed
+for Accounts (or an external cron) to trigger Payment Due notifications,
+since no job scheduler is wired up.
+
+## Incentives
+
+`POST /incentives/rules` sets the weights (`activityWeight`,
+`salesClosedPct`, `collectionsPct`); `GET /incentives/report?year=&month=`
+computes CRM Activity + Sales Closed + Collections **live** from
+`LeadActivity`, `Order`, and `Payment` rows via `groupBy` — there is no
+stored per-employee score table, so it can never drift from the source
+data or need manual entry.
+
 ## Status
 
-**Built and verified** (typecheck, lint, and the full integration test all
-pass): Foundation, Identity & Access, Customers/Contacts, CRM (Leads +
-Activities), Quotations + Approval workflow, Products/Brands, Warehouses,
-Inventory + Stock Gate + Shortages, Orders + Fulfilment, Purchasing + Goods
-Receipt, Logistics (dispatch/delay/POD), Invoices, Payments, and a
-cross-cutting Audit Log.
+**Built and verified** (typecheck, lint, and the full integration suite —
+2 files, both lifecycle and extended-module coverage — all pass together
+against a real Postgres-wire database; the server has also been smoke-run
+as an actual OS process over real HTTP):
 
-**Deliberately not built in this pass** (see
-`docs/planning/03_EXECUTION_PLAN.md` Phases 10–15): Google Drive
-document integration and a real notification/event delivery system (a
-`recordAudit` call happens on every mutation, which a notification service
-can subscribe to later, but no notifications are actually sent yet), People
-& Assets, HR & Incentives, Profitability views, Dashboard/Reporting
-aggregation APIs, and a dedicated production-hardening review pass.
+- Foundation, Identity & Access
+- Customers/Contacts, CRM (Leads + Activities), Quotations + Approval workflow
+- Products/Brands, Warehouses, Inventory + Stock Gate + Shortages
+- Orders + Fulfilment, Purchasing + Goods Receipt
+- Logistics (dispatch/delay/POD), Invoices, Payments
+- Notifications (in-app) + Documents (Google Drive link abstraction)
+- People & Assets (employees, assets, assignment history, maintenance log)
+- HR & Incentives (policies + acknowledgement, live incentive computation)
+- Profitability (summary, by-brand, by-customer, by-segment)
+- Dashboard/Reporting (command center, CRM, inventory alerts, purchase
+  tracking, logistics, people & assets, HR)
+- A cross-cutting Audit Log on every mutation
+
+**Explicitly out of scope / not built:**
+
+- Real Google Drive API integration (OAuth, actual file upload) — Documents
+  currently store a validated link + metadata, which is the backend
+  abstraction the workflow rules call for, but nothing calls the Drive API.
+- Email/SMS notification delivery — notifications are in-app/DB only.
+- A background job scheduler — the overdue-invoice check is an on-demand
+  endpoint, not a cron.
+- A dedicated production-hardening review pass (see
+  `docs/planning/03_EXECUTION_PLAN.md` Phase 15) — load testing, a security
+  audit beyond what's already built in (helmet, rate limiting, RBAC,
+  parameterized queries throughout), and index tuning under real data
+  volumes haven't been done.
 
 **Not runtime-verified against a persistent/managed Postgres or in
 production-like conditions** — only against the embedded PGlite

@@ -7,6 +7,7 @@ import { computeLine, computeTotals } from "../../lib/pricing";
 import { BadRequestError, ForbiddenError, NotFoundError } from "../../lib/errors";
 import { toSkipTake, paginated } from "../../lib/pagination";
 import { quotationVisibilityWhere, type AuthUser } from "../../lib/authz";
+import { notifyManagers, notifyUser } from "../../lib/notify";
 import type {
   createQuotationSchema,
   updateQuotationItemsSchema,
@@ -181,6 +182,13 @@ export async function submitForApproval(user: AuthUser, id: string, actorId: str
       previousValue: { status: existing.status },
       newValue: { status: updated.status },
     });
+    await notifyManagers(tx, {
+      type: "APPROVAL_NEEDED",
+      title: `Quotation ${updated.quotationNumber} needs approval`,
+      message: `Quotation ${updated.quotationNumber} for ${updated.customer.name} (${updated.grandTotal.toString()}) is pending your approval.`,
+      entityType: "Quotation",
+      entityId: id,
+    });
     return updated;
   });
 }
@@ -217,6 +225,14 @@ export async function decideApproval(
       action: "APPROVAL_DECISION",
       previousValue: { status: existing.status },
       newValue: { status: updated.status, decision: input.decision, comment: input.comment },
+    });
+    await notifyUser(tx, {
+      userId: updated.salespersonId,
+      type: "QUOTATION_DECISION",
+      title: `Quotation ${updated.quotationNumber} ${input.decision.toLowerCase().replace("_", " ")}`,
+      message: input.comment ?? `Quotation ${updated.quotationNumber} was ${input.decision.toLowerCase().replace("_", " ")}.`,
+      entityType: "Quotation",
+      entityId: id,
     });
     return updated;
   });
