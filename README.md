@@ -1,10 +1,16 @@
-# TILE / OS — Backend
+# TILE / OS
 
-Backend for TILE / OS, a tile-store business operating system connecting CRM,
+TILE / OS is a tile-store business operating system connecting CRM,
 quotations, orders, inventory, purchasing, logistics, accounts, people &
 assets, HR/incentives, profitability, and reporting into one system. See
 [docs/planning/](docs/planning/) for the original product context, workflow
-rules, and execution plan this backend was built against.
+rules, and execution plan this project was built against.
+
+This repository root is the **backend** (Node/Express/Prisma/PostgreSQL —
+see below). The **frontend** (React/Vite control center UI) lives in
+[frontend/](frontend/), with its own README covering setup and scope.
+
+## Backend
 
 **Scope:** all 15 phases of the execution plan (Foundation through
 Hardening) are implemented — see [Status](#status) for exactly what's

@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+/* "Onyx & Brass" theme, matching the TILE / OS design reference. */
+@theme {
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:
+    "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --color-ink: #17140f;
+  --color-ink-soft: #221d15;
+  --color-ink-border: #33291b;
+
+  --color-brass: #c9a961;
+  --color-brass-dark: #a9863f;
+  --color-brass-light: #e4cd94;
+
+  --color-cream: #f2efe4;
+  --color-card: #fffdf8;
+  --color-border: #e6dfc9;
+  --color-ink-text: #201c14;
+  --color-muted: #8a8272;
+
+  --color-status-critical: #c1443c;
+  --color-status-critical-bg: #fbe9e7;
+  --color-status-warning: #b3781f;
+  --color-status-warning-bg: #faf0dc;
+  --color-status-success: #2f8f5b;
+  --color-status-success-bg: #e5f4ec;
+  --color-status-info: #3b6ea5;
+  --color-status-info-bg: #e8f1f9;
+  --color-status-neutral: #75705f;
+  --color-status-neutral-bg: #eeebdf;
+}
+
+body {
+  background-color: var(--color-cream);
+  color: var(--color-ink-text);
+  font-family: var(--font-sans);
+}
+
+/* Small utility for the monospace figures used in tables/badges throughout. */
+.font-figures {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
