@@ -1,5 +1,6 @@
 import { useAuth } from "../../auth/AuthContext";
 import { Button } from "../ui/Button";
+import { NotificationBell } from "./NotificationBell";
 
 export function Topbar({ title, subtitle }: { title: string; subtitle?: string }) {
   const { user, logout } = useAuth();
@@ -17,6 +18,7 @@ export function Topbar({ title, subtitle }: { title: string; subtitle?: string }
           placeholder="Search order / customer"
           className="hidden w-64 rounded-lg border border-border bg-card px-3 py-2 text-sm placeholder:text-muted focus:border-brass focus:outline-none focus:ring-2 focus:ring-brass/20 md:block"
         />
+        <NotificationBell />
         <div className="flex items-center gap-3">
           <div className="text-right">
             <p className="text-sm font-medium text-ink-text">{user?.name}</p>

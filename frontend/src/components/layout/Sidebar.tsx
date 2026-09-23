@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import { PRIMARY_NAV, ADMIN_NAV } from "./navConfig";
 import { useHealthStatus } from "../../api/health";
 
@@ -31,12 +31,12 @@ export function Sidebar() {
 
   return (
     <aside className="flex h-screen w-60 shrink-0 flex-col bg-ink px-4 py-5">
-      <div className="px-2">
+      <Link to="/" className="block px-2">
         <p className="text-lg font-bold tracking-tight text-white">
           TILE / <span className="text-brass">OS</span>
         </p>
         <p className="mt-0.5 text-[10px] font-semibold tracking-[0.2em] text-white/40">CONTROL CENTER</p>
-      </div>
+      </Link>
 
       <nav className="mt-8 flex-1 overflow-y-auto">
         <NavList items={PRIMARY_NAV} />

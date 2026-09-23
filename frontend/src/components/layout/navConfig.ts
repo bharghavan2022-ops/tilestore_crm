@@ -6,7 +6,8 @@ export interface NavItem {
 }
 
 export const PRIMARY_NAV: NavItem[] = [
-  { label: "Command Center", path: "/", available: true },
+  { label: "Home", path: "/", available: true },
+  { label: "Command Center", path: "/command-center", available: true },
   { label: "CRM & Leads", path: "/crm", available: true },
   { label: "Orders", path: "/orders", available: true },
   { label: "Inventory", path: "/inventory", available: true },

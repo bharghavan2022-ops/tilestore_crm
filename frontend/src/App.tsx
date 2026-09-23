@@ -6,6 +6,7 @@ import { RequireAuth } from "./auth/RequireAuth";
 import { ToastProvider } from "./components/ui/Toast";
 import { AppShell } from "./components/layout/AppShell";
 import { LoginPage } from "./pages/LoginPage";
+import { HomeLauncherPage } from "./pages/HomeLauncherPage";
 import { CommandCenterPage } from "./pages/CommandCenterPage";
 import { CrmLeadsPage } from "./pages/CrmLeadsPage";
 import { LeadDetailPage } from "./pages/LeadDetailPage";
@@ -31,7 +32,8 @@ export default function App() {
 
               <Route element={<RequireAuth />}>
                 <Route element={<AppShell />}>
-                  <Route index element={<CommandCenterPage />} />
+                  <Route index element={<HomeLauncherPage />} />
+                  <Route path="/command-center" element={<CommandCenterPage />} />
 
                   <Route path="/crm" element={<CrmLeadsPage />} />
                   <Route path="/crm/leads/:leadId" element={<LeadDetailPage />} />
