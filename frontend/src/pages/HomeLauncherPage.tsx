@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { NotificationBell } from "../components/layout/NotificationBell";
-import { APP_TILES, TILE_COLOR_CLASSES } from "../components/launcher/appTiles";
+import { APP_TILES } from "../components/launcher/appTiles";
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -25,8 +25,8 @@ export function HomeLauncherPage() {
     <div className="-mx-8">
       {/* Minimal top bar, distinct from the in-app Topbar used on every other
           page - matches the launcher's own header in the Odoo reference
-          (greeting + search on the left, notifications + avatar on the right). */}
-      <header className="flex items-center justify-between border-b border-border bg-card px-8 py-4">
+          (search on the left, notifications + avatar on the right). */}
+      <header className="flex items-center justify-between border-b border-border bg-card px-8 py-3.5">
         <div className="flex-1">
           <input
             type="search"
@@ -38,38 +38,37 @@ export function HomeLauncherPage() {
         </div>
         <div className="flex items-center gap-3">
           <NotificationBell />
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-ink text-xs font-semibold text-brass-light">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-ink text-xs font-semibold text-brass-light">
             {user?.name?.slice(0, 1).toUpperCase() ?? "?"}
           </div>
         </div>
       </header>
 
-      <div className="px-8 py-10">
-        <h1 className="text-2xl font-semibold text-ink-text">
+      <div className="px-8 py-12">
+        <h1 className="text-xl font-medium text-ink-text">
           {greeting()}, {user?.name?.split(" ")[0] ?? "there"}
         </h1>
-        <p className="mt-1 text-sm text-muted">Pick an app to get started.</p>
 
-        <div className="mt-8 grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="mt-10 grid grid-cols-3 gap-x-4 gap-y-8 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7">
           {tiles.map((tile) => {
             const Icon = tile.icon;
-            const content = (
-              <div
-                className={`flex h-full flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card px-4 py-6 text-center shadow-sm transition-all ${
-                  tile.available ? "hover:-translate-y-0.5 hover:shadow-md" : "opacity-60"
+            return (
+              <Link
+                key={tile.path}
+                to={tile.path}
+                className={`group flex flex-col items-center gap-2.5 rounded-xl px-2 py-3 text-center transition-colors hover:bg-black/[0.03] ${
+                  tile.available ? "" : "opacity-50"
                 }`}
               >
-                <span className={`flex h-14 w-14 items-center justify-center rounded-xl ${TILE_COLOR_CLASSES[tile.color]}`}>
-                  <Icon size={26} strokeWidth={1.75} />
+                <span
+                  className={`flex h-16 w-16 items-center justify-center rounded-[18px] text-white shadow-[0_6px_14px_-4px_rgba(0,0,0,0.35)] transition-transform duration-150 group-hover:scale-[1.06] ${tile.badgeClassName}`}
+                >
+                  <Icon size={30} strokeWidth={2} />
                 </span>
-                <span className="text-sm font-medium text-ink-text">{tile.label}</span>
-                {!tile.available && <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">Coming soon</span>}
-              </div>
-            );
-
-            return (
-              <Link key={tile.path} to={tile.path} className="block">
-                {content}
+                <span className="text-[13px] font-medium leading-tight text-ink-text">{tile.label}</span>
+                {!tile.available && (
+                  <span className="-mt-1.5 text-[9px] font-semibold uppercase tracking-wide text-muted">Coming soon</span>
+                )}
               </Link>
             );
           })}
