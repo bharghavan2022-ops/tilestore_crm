@@ -35,7 +35,6 @@ export function Sidebar() {
         <p className="text-lg font-bold tracking-tight text-white">
           TILE / <span className="text-brass">OS</span>
         </p>
-        <p className="mt-0.5 text-[10px] font-semibold tracking-[0.2em] text-white/40">CONTROL CENTER</p>
       </Link>
 
       <nav className="mt-8 flex-1 overflow-y-auto">

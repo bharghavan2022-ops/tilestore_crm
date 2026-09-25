@@ -14,10 +14,10 @@ import { statusTone, humanizeStatus } from "../lib/statusTone";
 import { formatDateTime } from "../lib/format";
 import { useToast } from "../components/ui/Toast";
 import { getApiErrorMessage } from "../lib/apiClient";
+import { ACTIVITY_TYPES, activityTypeConfig } from "../lib/activityTypes";
 import type { LeadStatus } from "../types/api";
 
 const LEAD_STATUSES: LeadStatus[] = ["NEW", "CONTACTED", "SITE_VISIT_SCHEDULED", "SURVEY_DONE", "QUOTED", "WON", "LOST"];
-const ACTIVITY_TYPES = ["CALL", "SITE_VISIT", "FOLLOW_UP", "NOTE", "EMAIL", "MEETING"];
 
 export function LeadDetailPage() {
   const { leadId } = useParams<{ leadId: string }>();
@@ -94,41 +94,63 @@ export function LeadDetailPage() {
             <CardHeader title="Activities" subtitle="Calls, visits, follow-ups logged against this lead" />
             {lead.data.activities.length ? (
               <ul className="divide-y divide-border">
-                {lead.data.activities.map((a) => (
-                  <li key={a.id} className="px-5 py-3.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-ink-text">{humanizeStatus(a.type)}</span>
-                      <span className="font-figures text-xs text-muted">{formatDateTime(a.createdAt)}</span>
-                    </div>
-                    {a.notes && <p className="mt-1 text-sm text-muted">{a.notes}</p>}
-                  </li>
-                ))}
+                {lead.data.activities.map((a) => {
+                  const config = activityTypeConfig(a.type);
+                  const ActivityIcon = config.icon;
+                  return (
+                    <li key={a.id} className="flex items-start gap-3 px-5 py-3.5">
+                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white ${config.badgeClassName}`}>
+                        <ActivityIcon size={16} strokeWidth={2} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-ink-text">{config.label}</span>
+                          <span className="font-figures text-xs text-muted">{formatDateTime(a.createdAt)}</span>
+                        </div>
+                        {a.notes && <p className="mt-0.5 text-sm text-muted">{a.notes}</p>}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
               <EmptyState title="No activities logged yet" />
             )}
-            <form className="flex flex-wrap items-end gap-3 border-t border-border p-5" onSubmit={handleAddActivity}>
-              <div className="w-40">
-                <Select label="Type" value={activityType} onChange={(e) => setActivityType(e.target.value)}>
-                  {ACTIVITY_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {humanizeStatus(t)}
-                    </option>
-                  ))}
-                </Select>
+            <form className="border-t border-border p-5" onSubmit={handleAddActivity}>
+              <span className="mb-2 block text-xs font-medium text-muted">Log activity</span>
+              <div className="flex flex-wrap gap-2">
+                {ACTIVITY_TYPES.map((t) => {
+                  const TypeIcon = t.icon;
+                  const selected = activityType === t.value;
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => setActivityType(t.value)}
+                      title={t.label}
+                      className={`flex h-10 w-10 items-center justify-center rounded-lg text-white transition-all ${t.badgeClassName} ${
+                        selected ? "ring-2 ring-ink ring-offset-2" : "opacity-50 hover:opacity-80"
+                      }`}
+                    >
+                      <TypeIcon size={17} strokeWidth={2} />
+                    </button>
+                  );
+                })}
               </div>
-              <div className="flex-1">
-                <Textarea
-                  label="Notes"
-                  rows={1}
-                  value={activityNotes}
-                  onChange={(e) => setActivityNotes(e.target.value)}
-                  placeholder="What happened?"
-                />
+              <div className="mt-3 flex flex-wrap items-end gap-3">
+                <div className="flex-1">
+                  <Textarea
+                    label="Notes"
+                    rows={1}
+                    value={activityNotes}
+                    onChange={(e) => setActivityNotes(e.target.value)}
+                    placeholder="What happened?"
+                  />
+                </div>
+                <Button type="submit" loading={addActivity.isPending}>
+                  Log activity
+                </Button>
               </div>
-              <Button type="submit" loading={addActivity.isPending}>
-                Log activity
-              </Button>
             </form>
           </Card>
 
@@ -169,7 +191,6 @@ export function LeadDetailPage() {
           <Card>
             <CardHeader title="Customer" />
             <div className="space-y-2 px-5 py-4 text-sm">
-              <InfoRow label="Name" value={lead.data.customer.name} />
               <InfoRow label="Phone" value={lead.data.customer.phone ?? "—"} />
               <InfoRow label="Email" value={lead.data.customer.email ?? "—"} />
               <InfoRow label="Segment" value={humanizeStatus(lead.data.customer.segment)} />

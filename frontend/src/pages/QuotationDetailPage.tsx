@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { CheckCircle2, AlertCircle, XCircle, ArrowRightCircle } from "lucide-react";
 import { Topbar } from "../components/layout/Topbar";
 import { Card, CardHeader } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
@@ -78,7 +79,7 @@ export function QuotationDetailPage() {
         )}
         {canConvert && (
           <Button loading={createOrder.isPending} onClick={handleConvert}>
-            Convert to order
+            <ArrowRightCircle size={16} /> Convert to order
           </Button>
         )}
       </div>
@@ -130,13 +131,13 @@ export function QuotationDetailPage() {
                 <Textarea label="Comment" rows={2} value={comment} onChange={(e) => setComment(e.target.value)} />
                 <div className="flex flex-col gap-2">
                   <Button loading={decide.isPending} onClick={() => handleDecision("APPROVED")}>
-                    Approve
+                    <CheckCircle2 size={16} /> Approve
                   </Button>
                   <Button variant="secondary" loading={decide.isPending} onClick={() => handleDecision("CHANGES_REQUIRED")}>
-                    Request changes
+                    <AlertCircle size={16} /> Request changes
                   </Button>
                   <Button variant="danger" loading={decide.isPending} onClick={() => handleDecision("REJECTED")}>
-                    Reject
+                    <XCircle size={16} /> Reject
                   </Button>
                 </div>
               </div>
@@ -147,7 +148,6 @@ export function QuotationDetailPage() {
             <CardHeader title="Details" />
             <div className="space-y-2 px-5 py-4 text-sm">
               <Row label="Salesperson" value={q.salesperson.name} />
-              <Row label="Customer" value={q.customer.name} />
               <Row label="Valid until" value={q.validUntil ? formatDateTime(q.validUntil) : "—"} />
             </div>
           </Card>

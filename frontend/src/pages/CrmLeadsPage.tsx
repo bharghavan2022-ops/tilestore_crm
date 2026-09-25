@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Users, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { Topbar } from "../components/layout/Topbar";
 import { Card } from "../components/ui/Card";
 import { KpiCard } from "../components/ui/KpiCard";
@@ -39,10 +40,33 @@ export function CrmLeadsPage() {
       <Topbar title="CRM & Leads" subtitle="Live view · All salespeople" />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Total leads" value={crm.data ? crm.data.totalLeads : <Spinner />} />
-        <KpiCard label="Converted / closed" value={won} hintTone="success" hint={crm.data?.winRatePct != null ? `${crm.data.winRatePct}% win rate` : undefined} />
-        <KpiCard label="Lost / not closed" value={lost} hintTone="critical" />
-        <KpiCard label="Still in progress" value={inProgress} />
+        <KpiCard
+          label="Total leads"
+          value={crm.data ? crm.data.totalLeads : <Spinner />}
+          icon={Users}
+          iconClassName="bg-gradient-to-br from-fuchsia-500 to-violet-600"
+        />
+        <KpiCard
+          label="Converted / closed"
+          value={won}
+          hintTone="success"
+          hint={crm.data?.winRatePct != null ? `${crm.data.winRatePct}% win rate` : undefined}
+          icon={CheckCircle2}
+          iconClassName="bg-gradient-to-br from-emerald-500 to-teal-600"
+        />
+        <KpiCard
+          label="Lost / not closed"
+          value={lost}
+          hintTone="critical"
+          icon={XCircle}
+          iconClassName="bg-gradient-to-br from-red-500 to-rose-600"
+        />
+        <KpiCard
+          label="Still in progress"
+          value={inProgress}
+          icon={Clock}
+          iconClassName="bg-gradient-to-br from-amber-400 to-orange-500"
+        />
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
