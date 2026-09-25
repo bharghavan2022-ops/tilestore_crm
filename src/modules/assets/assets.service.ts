@@ -77,10 +77,22 @@ export async function assignAsset(id: string, input: z.infer<typeof assignAssetS
   if (!user) throw new NotFoundError("User not found");
 
   return prisma.$transaction(async (tx) => {
+    // Conditional update, not a blind write: two concurrent requests could
+    // both pass the AVAILABLE check above before either commits. Only the
+    // request whose UPDATE actually flips a still-AVAILABLE row wins: the
+    // WHERE clause is re-checked against the current committed row at
+    // execution time, so the loser's updateMany affects zero rows.
+    const claimed = await tx.asset.updateMany({
+      where: { id, status: "AVAILABLE" },
+      data: { status: "ASSIGNED" },
+    });
+    if (claimed.count === 0) {
+      throw new ForbiddenError("Asset was just assigned by someone else - please retry");
+    }
+
     const assignment = await tx.assetAssignment.create({
       data: { assetId: id, userId: input.userId, notes: input.notes },
     });
-    await tx.asset.update({ where: { id }, data: { status: "ASSIGNED" } });
     await recordAudit(tx, {
       userId: actorId,
       entityType: "AssetAssignment",

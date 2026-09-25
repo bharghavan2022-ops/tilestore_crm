@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate";
-import { requireStaff } from "../../middleware/authorize";
+import { requireStaff, requireTeamType } from "../../middleware/authorize";
 import { validate } from "../../middleware/validate";
 import {
   createOrderFromQuotationSchema,
@@ -37,9 +37,11 @@ ordersRouter.post(
   validate({ params: idParamSchema }),
   ordersController.cancelOrderHandler,
 );
+// Pick/Pack/Label/Handoff is Warehouse's job per the team responsibilities
+// in the project docs - not any staff member's.
 ordersRouter.patch(
   "/:id/fulfilment/:taskId",
-  requireStaff,
+  requireTeamType("WAREHOUSE"),
   validate({ params: orderTaskParamSchema, body: updateFulfilmentTaskSchema }),
   ordersController.updateFulfilmentTaskHandler,
 );

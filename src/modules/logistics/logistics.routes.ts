@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate";
-import { requireStaff, requireRole } from "../../middleware/authorize";
+import { requireStaff, requireTeamType } from "../../middleware/authorize";
 import { validate } from "../../middleware/validate";
 import {
   createVehicleSchema,
@@ -18,7 +18,7 @@ export const logisticsRouter = Router();
 
 logisticsRouter.use(authenticate);
 
-const deliveryTeam = requireRole("OWNER", "ADMIN", "TEAM_LEAD", "TEAM_MEMBER");
+const deliveryTeam = requireTeamType("DELIVERY");
 
 logisticsRouter.get("/vehicles", requireStaff, logisticsController.listVehiclesHandler);
 logisticsRouter.post(

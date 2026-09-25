@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate";
-import { requireStaff, requireRole } from "../../middleware/authorize";
+import { requireStaff, requireTeamType } from "../../middleware/authorize";
 import { validate } from "../../middleware/validate";
 import {
   createPurchaseOrderSchema,
@@ -15,7 +15,7 @@ export const purchaseOrdersRouter = Router();
 
 purchaseOrdersRouter.use(authenticate, requireStaff);
 
-const purchaseTeam = requireRole("OWNER", "ADMIN", "TEAM_LEAD", "TEAM_MEMBER");
+const purchaseTeam = requireTeamType("PURCHASE");
 
 purchaseOrdersRouter.get("/", validate({ query: listPurchaseOrdersQuerySchema }), poController.listPurchaseOrdersHandler);
 purchaseOrdersRouter.get("/:id", validate({ params: idParamSchema }), poController.getPurchaseOrderHandler);

@@ -298,19 +298,44 @@ export async function runStockGateForOrder(
     newValue: { orderStatus, items: results },
   });
 
+  // Fulfilment can't start until *something* tells Warehouse stock is
+  // ready - only the shortage path notified anyone before this. Fire once,
+  // on the transition into a pickable state, not on every re-evaluation of
+  // an order that was already there (e.g. a manual stock-gate re-run).
+  const becameFulfillable =
+    order.status !== orderStatus && (orderStatus === "RESERVED" || orderStatus === "PARTIALLY_RESERVED");
+  if (becameFulfillable) {
+    await notifyTeamAndManagers(tx, "WAREHOUSE", {
+      type: "TASK_ASSIGNED",
+      title: `Order ${order.orderNumber} ready for picking`,
+      message:
+        orderStatus === "RESERVED"
+          ? `Order ${order.orderNumber} is fully reserved and ready for fulfilment.`
+          : `Order ${order.orderNumber} is partially reserved - some items can be picked now.`,
+      entityType: "Order",
+      entityId: orderId,
+    });
+  }
+
   return { orderId, items: results, orderStatus };
 }
 
-// Releases every active reservation for an order (e.g. on cancellation),
-// returning the reserved quantity back to available stock.
+// Releases every reservation for an order on cancellation. Two cases:
+//   - ACTIVE reservations (stock held but never picked): just release the
+//     hold, nothing physically moved.
+//   - FULFILLED reservations (stock already picked - consumeReservedStock
+//     already decremented quantityOnHand): the physical stock must come
+//     back on hand, or cancelling an order after picking silently loses
+//     that inventory forever (it's not on the shelf, not with a customer
+//     since nothing was delivered, and not on any order anymore).
 export async function releaseReservationsForOrder(
   tx: Prisma.TransactionClient,
   orderId: string,
   actorId: string,
 ): Promise<void> {
-  const reservations = await tx.stockReservation.findMany({ where: { orderId, status: "ACTIVE" } });
+  const activeReservations = await tx.stockReservation.findMany({ where: { orderId, status: "ACTIVE" } });
 
-  for (const reservation of reservations) {
+  for (const reservation of activeReservations) {
     await tx.stockItem.update({
       where: { productId_warehouseId: { productId: reservation.productId, warehouseId: reservation.warehouseId } },
       data: { quantityReserved: { decrement: reservation.quantity } },
@@ -324,6 +349,28 @@ export async function releaseReservationsForOrder(
         quantity: reservation.quantity,
         referenceType: "Order",
         referenceId: orderId,
+        createdById: actorId,
+      },
+    });
+  }
+
+  const fulfilledReservations = await tx.stockReservation.findMany({ where: { orderId, status: "FULFILLED" } });
+
+  for (const reservation of fulfilledReservations) {
+    await tx.stockItem.update({
+      where: { productId_warehouseId: { productId: reservation.productId, warehouseId: reservation.warehouseId } },
+      data: { quantityOnHand: { increment: reservation.quantity } },
+    });
+    await tx.stockReservation.update({ where: { id: reservation.id }, data: { status: "RELEASED", releasedAt: new Date() } });
+    await tx.stockMovement.create({
+      data: {
+        productId: reservation.productId,
+        warehouseId: reservation.warehouseId,
+        type: "ADJUSTMENT",
+        quantity: reservation.quantity,
+        referenceType: "Order",
+        referenceId: orderId,
+        note: "Stock returned: order cancelled after picking",
         createdById: actorId,
       },
     });

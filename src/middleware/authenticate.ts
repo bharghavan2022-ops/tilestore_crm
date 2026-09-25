@@ -28,7 +28,7 @@ export const authenticate = asyncHandler(async (req: Request, _res: Response, ne
 
   const user = await prisma.user.findUnique({
     where: { id: payload.sub },
-    select: { id: true, role: true, teamId: true, customerId: true, status: true },
+    select: { id: true, role: true, teamId: true, customerId: true, status: true, team: { select: { type: true } } },
   });
 
   if (!user) {
@@ -38,6 +38,7 @@ export const authenticate = asyncHandler(async (req: Request, _res: Response, ne
     throw new UnauthorizedError("Account is not active");
   }
 
-  req.user = user;
+  const { team, ...userFields } = user;
+  req.user = { ...userFields, teamType: team?.type ?? null };
   next();
 });

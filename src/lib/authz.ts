@@ -39,14 +39,6 @@ export function leadVisibilityWhere(user: AuthUser): Prisma.LeadWhereInput {
   return { assignedToId: user.id };
 }
 
-export function fulfilmentTaskVisibilityWhere(user: AuthUser): Prisma.FulfilmentTaskWhereInput {
-  if (isManager(user)) return {};
-  if (user.role === "TEAM_LEAD") {
-    return { OR: [{ assignedToId: user.id }, { assignedTo: { teamId: user.teamId } }] };
-  }
-  return { assignedToId: user.id };
-}
-
 export function quotationVisibilityWhere(user: AuthUser): Prisma.QuotationWhereInput {
   if (isManager(user)) return {};
   if (user.role === "TEAM_LEAD") {
